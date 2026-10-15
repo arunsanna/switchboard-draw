@@ -27,6 +27,6 @@
       "@excalidraw/math/*": ["./packages/math/*"]
     }
   },
-  "include": ["packages", "excalidraw-app"],
+  "include": ["packages", "switchboard-studio"],
   "exclude": ["examples", "dist", "types", "tests"]
 }

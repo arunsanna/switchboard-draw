@@ -3,11 +3,10 @@
   "name": "excalidraw-monorepo",
   "packageManager": "yarn@1.22.22",
   "workspaces": [
-    "excalidraw-app",
+    "switchboard-studio",
     "packages/excalidraw",
     "packages/utils",
-    "packages/math",
-    "examples/*"
+    "packages/math"
   ],
   "devDependencies": {
     "@babel/preset-env": "7.26.9",
@@ -28,7 +27,6 @@
     "eslint-config-react-app": "7.0.1",
     "eslint-plugin-prettier": "3.3.1",
     "http-server": "14.1.1",
-    "husky": "7.0.4",
     "jsdom": "22.1.0",
     "lint-staged": "12.3.7",
     "pepjs": "0.5.3",
@@ -44,21 +42,16 @@
     "vitest-canvas-mock": "0.3.3"
   },
   "engines": {
-    "node": "18.0.0 - 22.x.x"
+    "node": ">=18.0.0"
   },
   "homepage": ".",
   "prettier": "@excalidraw/prettier-config",
   "scripts": {
     "build-node": "node ./scripts/build-node.js",
-    "build:app:docker": "yarn --cwd ./excalidraw-app build:app:docker",
-    "build:app": "yarn --cwd ./excalidraw-app build:app",
+    "build:app": "yarn --cwd ./switchboard-studio build",
     "build:package": "yarn --cwd ./packages/excalidraw build:esm",
-    "build:version": "yarn --cwd ./excalidraw-app build:version",
-    "build": "yarn --cwd ./excalidraw-app build",
-    "build:preview": "yarn --cwd ./excalidraw-app build:preview",
-    "start": "yarn --cwd ./excalidraw-app start",
-    "start:production": "yarn --cwd ./excalidraw-app start:production",
-    "start:example": "yarn build:package && yarn --cwd ./examples/with-script-in-browser start",
+    "build": "yarn --cwd ./switchboard-studio build",
+    "start": "yarn --cwd ./switchboard-studio start",
     "test:all": "yarn test:typecheck && yarn test:code && yarn test:other && yarn test:app --watch=false",
     "test:app": "vitest",
     "test:code": "eslint --max-warnings=0 --ext .js,.ts,.tsx .",
@@ -74,13 +67,9 @@
     "fix": "yarn fix:other && yarn fix:code",
     "locales-coverage": "node scripts/build-locales-coverage.js",
     "locales-coverage:description": "node scripts/locales-coverage-description.js",
-    "prepare": "husky install",
     "prettier": "prettier \"**/*.{css,scss,json,md,html,yml}\" --ignore-path=.eslintignore",
-    "autorelease": "node scripts/autorelease.js",
-    "prerelease:excalidraw": "node scripts/prerelease.js",
-    "release:excalidraw": "node scripts/release.js",
-    "rm:build": "rm -rf excalidraw-app/{build,dist,dev-dist} && rm -rf packages/*/{dist,build} && rm -rf examples/*/{build,dist}",
-    "rm:node_modules": "rm -rf node_modules && rm -rf excalidraw-app/node_modules && rm -rf packages/*/node_modules",
+    "rm:build": "rm -rf switchboard-studio/build && rm -rf packages/*/{dist,build}",
+    "rm:node_modules": "rm -rf node_modules && rm -rf switchboard-studio/node_modules && rm -rf packages/*/node_modules",
     "clean-install": "yarn rm:node_modules && yarn install"
   },
   "resolutions": {

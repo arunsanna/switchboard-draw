@@ -1,3 +1,15 @@
+# Switchboard Studio
+
+Switchboard's fork of [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), forked at v0.18.1 and packaged for Switchboard Canvas.
+
+- `switchboard-studio/` is the app: the editor page the Switchboard gateway serves and the Switchboard apps load. It talks to Switchboard through a native bridge inside the apps, or through the gateway's diagram API in a browser.
+- Removed from the fork: the excalidraw.com app shell (collaboration rooms, share links, Firebase, Sentry, PWA, Excalidraw+ and AI features), docs, examples and hosting configs. Library browsing and publishing stay off unless configured.
+- `yarn build` writes `switchboard-studio/build/`, a self-contained folder with no CDN or outside calls.
+
+Excalidraw's copyright and MIT license are kept in [LICENSE](LICENSE). The original README follows.
+
+---
+
 <a href="https://excalidraw.com/" target="_blank" rel="noopener">
   <picture>
     <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />

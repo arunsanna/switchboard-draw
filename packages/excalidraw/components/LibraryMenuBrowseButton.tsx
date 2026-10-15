@@ -11,6 +11,10 @@ const LibraryMenuBrowseButton = ({
   theme: UIAppState["theme"];
   id: string;
 }) => {
+  // Switchboard: the public library site is optional; without it there is no link.
+  if (!import.meta.env.VITE_APP_LIBRARY_URL) {
+    return null;
+  }
   const referrer =
     libraryReturnUrl || window.location.origin + window.location.pathname;
   return (
