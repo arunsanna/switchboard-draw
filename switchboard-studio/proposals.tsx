@@ -225,7 +225,7 @@ export const ProposalLayer = forwardRef<
         style={{
           position: "fixed",
           left: "50%",
-          bottom: 20,
+          bottom: 76, // clear of Excalidraw's footer and its "scroll back to content" button
           transform: "translateX(-50%)",
           zIndex: 10,
           display: "flex",
