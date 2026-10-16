@@ -41,10 +41,15 @@ export type SaveResult =
   | { status: "failed"; message?: string };
 
 /** Where the scene is loaded from and saved to: the Switchboard app, or the gateway directly. */
+/** What Keep or Undo on an agent proposal answered. */
+export type Decision = { ok: true } | { ok: false; message: string };
+
 export type Transport = {
   load(): Promise<LoadedScene>;
   save(scene: string, base: number): Promise<SaveResult>;
   changed(): void;
+  /** Keeps or undoes an agent proposal; absent where the host cannot (older Mac apps). */
+  decide?(proposal: string, action: "keep" | "undo"): Promise<Decision>;
 };
 
 type SceneAPI = Pick<
@@ -300,7 +305,7 @@ export class DiagramSync {
 
 // ── Transports ─────────────────────────────────────────────────────────────
 
-type NativeBridge = { postMessage: (message: unknown) => unknown };
+export type NativeBridge = { postMessage: (message: unknown) => unknown };
 
 declare global {
   interface Window {
@@ -312,18 +317,48 @@ export const nativeBridge = (): NativeBridge | undefined =>
   window.webkit?.messageHandlers?.studio;
 
 /** The Switchboard app answers each message (Mac apps built from 2026-10-15 on). */
-export function nativeTransport(bridge: NativeBridge): Transport {
+export function nativeTransport(
+  bridge: NativeBridge,
+  proposals = false,
+): Transport {
   return {
     load: async () =>
       (await bridge.postMessage({ type: "load" })) as LoadedScene,
     save: async (scene, base) =>
       (await bridge.postMessage({ type: "save", scene, base })) as SaveResult,
     changed: () => void bridge.postMessage({ type: "changed" }),
+    decide: proposals
+      ? async (proposal, action) =>
+          ((await bridge.postMessage({
+            type: "proposal",
+            proposal,
+            action,
+          })) as Decision | undefined) ?? {
+            ok: false,
+            message: "The app did not answer",
+          }
+      : undefined,
   };
 }
 
 /** Protocol version 2 answers every message with a reply. */
 export const NATIVE_PROTOCOL = 2;
+/** Protocol version 3 also passes Keep and Undo on agent proposals to the gateway. */
+export const NATIVE_PROPOSALS_PROTOCOL = 3;
+
+/** The protocol the app speaks, or 0 when it cannot answer at all. */
+export async function nativeBridgeProtocol(
+  bridge: NativeBridge,
+): Promise<number> {
+  try {
+    const answer = (await bridge.postMessage({ type: "hello" })) as
+      | { protocol?: number }
+      | undefined;
+    return answer?.protocol ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 /**
  * True when the app speaks protocol 2. WebKit returns a promise from `postMessage` even when
@@ -332,14 +367,7 @@ export const NATIVE_PROTOCOL = 2;
 export async function nativeBridgeAnswers(
   bridge: NativeBridge,
 ): Promise<boolean> {
-  try {
-    const answer = (await bridge.postMessage({ type: "hello" })) as
-      | { protocol?: number }
-      | undefined;
-    return (answer?.protocol ?? 0) >= NATIVE_PROTOCOL;
-  } catch {
-    return false;
-  }
+  return (await nativeBridgeProtocol(bridge)) >= NATIVE_PROTOCOL;
 }
 
 /**
@@ -404,6 +432,21 @@ export function gatewayTransport(diagramID: string): Transport {
       };
     },
     changed() {},
+    async decide(proposal, action) {
+      const response = await fetch(
+        `../api/diagrams/${encodeURIComponent(
+          diagramID,
+        )}/proposals/${encodeURIComponent(proposal)}/${action}`,
+        { method: "POST" },
+      );
+      if (response.ok) {
+        return { ok: true };
+      }
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      return { ok: false, message: body.error ?? `HTTP ${response.status}` };
+    },
   };
 }
 

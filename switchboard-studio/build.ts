@@ -369,6 +369,7 @@ export async function buildScene(baseJSON: string, ops: Ops): Promise<Built> {
       Object.assign(end, {
         boundElements: [...(end.boundElements ?? []), { id, type: "arrow" }],
       });
+      changed.add(end.id); // a newer version, so live sync takes the new binding
     }
     elements.push(element);
     route(element, from, to);

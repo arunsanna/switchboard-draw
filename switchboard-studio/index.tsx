@@ -15,19 +15,23 @@ import {
   gatewayTransport,
   legacyNativeTransport,
   listenToGateway,
+  NATIVE_PROPOSALS_PROTOCOL,
+  NATIVE_PROTOCOL,
   nativeBridge,
-  nativeBridgeAnswers,
+  nativeBridgeProtocol,
   nativeTransport,
   scratchTransport,
   serializeScene,
 } from "./sync";
 import { buildScene } from "./build";
 import { compareScenes } from "./compare";
+import { ProposalLayer } from "./proposals";
 import { renderPictures } from "./render";
 
 import type { LoadedScene, Transport } from "./sync";
 import type { Built, Ops } from "./build";
 import type { Comparison } from "./compare";
+import type { ProposalLayerHandle } from "./proposals";
 import type { Pictures } from "./render";
 
 type Theme = "light" | "dark";
@@ -74,8 +78,9 @@ let legacyOpen: ((scene: string | null) => void) | null = null;
 async function makeTransport(): Promise<Transport> {
   const bridge = nativeBridge();
   if (bridge) {
-    return (await nativeBridgeAnswers(bridge))
-      ? nativeTransport(bridge)
+    const protocol = await nativeBridgeProtocol(bridge);
+    return protocol >= NATIVE_PROTOCOL
+      ? nativeTransport(bridge, protocol >= NATIVE_PROPOSALS_PROTOCOL)
       : legacyNativeTransport(bridge, (open) => (legacyOpen = open));
   }
   return diagramID ? gatewayTransport(diagramID) : scratchTransport;
@@ -101,13 +106,16 @@ function initialDataFrom(scene: string | null): ExcalidrawInitialDataState {
 const Studio = ({
   loaded,
   sync,
+  transport,
   theme,
 }: {
   loaded: LoadedScene;
   sync: DiagramSync;
+  transport: Transport;
   theme: Theme;
 }) => {
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
+  const proposals = useRef<ProposalLayerHandle | null>(null);
   const [initialData] = useState(() => initialDataFrom(loaded.scene));
 
   useEffect(() => {
@@ -116,51 +124,70 @@ const Studio = ({
   }, []);
 
   return (
-    <Excalidraw
-      initialData={initialData}
-      excalidrawAPI={(instance) => {
-        api.current = instance;
-        sync.attach(instance);
-      }}
-      onChange={(elements, appState, files) =>
-        sync.onChange(elements, appState, files)
-      }
-      theme={theme}
-      UIOptions={{
-        canvasActions: {
-          loadScene: false,
-          saveToActiveFile: false,
-          toggleTheme: null,
-          export: { saveFileToDisk: true },
-        },
-      }}
-    >
-      <MainMenu>
-        <MainMenu.DefaultItems.SaveAsImage />
-        <MainMenu.DefaultItems.Export />
-        <MainMenu.DefaultItems.ClearCanvas />
-        <MainMenu.Separator />
-        <MainMenu.DefaultItems.ChangeCanvasBackground />
-        <MainMenu.Separator />
-        <MainMenu.DefaultItems.Help />
-      </MainMenu>
-      <WelcomeScreen>
-        <WelcomeScreen.Center>
-          <WelcomeScreen.Center.Heading>
-            Draw anything. It saves on its own.
-          </WelcomeScreen.Center.Heading>
-        </WelcomeScreen.Center>
-        <WelcomeScreen.Hints.ToolbarHint />
-        <WelcomeScreen.Hints.MenuHint />
-        <WelcomeScreen.Hints.HelpHint />
-      </WelcomeScreen>
-    </Excalidraw>
+    <>
+      <Excalidraw
+        initialData={initialData}
+        excalidrawAPI={(instance) => {
+          api.current = instance;
+          sync.attach(instance);
+          setTimeout(() =>
+            proposals.current?.update(
+              instance.getSceneElements(),
+              instance.getAppState(),
+            ),
+          );
+        }}
+        onChange={(elements, appState, files) => {
+          sync.onChange(elements, appState, files);
+          proposals.current?.update(elements, appState);
+        }}
+        theme={theme}
+        UIOptions={{
+          canvasActions: {
+            loadScene: false,
+            saveToActiveFile: false,
+            toggleTheme: null,
+            export: { saveFileToDisk: true },
+          },
+        }}
+      >
+        <MainMenu>
+          <MainMenu.DefaultItems.SaveAsImage />
+          <MainMenu.DefaultItems.Export />
+          <MainMenu.DefaultItems.ClearCanvas />
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.ChangeCanvasBackground />
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.Help />
+        </MainMenu>
+        <WelcomeScreen>
+          <WelcomeScreen.Center>
+            <WelcomeScreen.Center.Heading>
+              Draw anything. It saves on its own.
+            </WelcomeScreen.Center.Heading>
+          </WelcomeScreen.Center>
+          <WelcomeScreen.Hints.ToolbarHint />
+          <WelcomeScreen.Hints.MenuHint />
+          <WelcomeScreen.Hints.HelpHint />
+        </WelcomeScreen>
+      </Excalidraw>
+      <ProposalLayer
+        ref={proposals}
+        theme={theme}
+        decide={transport.decide}
+        decided={() => sync.refresh()}
+      />
+    </>
   );
 };
 
 const root = createRoot(document.getElementById("root")!);
 let theme: Theme = params.get("theme") === "dark" ? "dark" : "light";
-let opened: { loaded: LoadedScene; sync: DiagramSync } | null = null;
+let opened: {
+  loaded: LoadedScene;
+  sync: DiagramSync;
+  transport: Transport;
+} | null = null;
 
 function render() {
   if (!opened) {
@@ -168,7 +195,12 @@ function render() {
   }
   root.render(
     <StrictMode>
-      <Studio loaded={opened.loaded} sync={opened.sync} theme={theme} />
+      <Studio
+        loaded={opened.loaded}
+        sync={opened.sync}
+        transport={opened.transport}
+        theme={theme}
+      />
     </StrictMode>,
   );
 }
@@ -206,7 +238,7 @@ async function start() {
     }
   }
   const sync = new DiagramSync(transport, loaded.version);
-  opened = { loaded, sync };
+  opened = { loaded, sync, transport };
   render();
   if (!nativeBridge() && diagramID) {
     listenToGateway(diagramID, sync);
