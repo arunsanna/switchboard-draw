@@ -10,12 +10,33 @@ export default defineConfig({
   server: { port: 5180 },
   resolve: {
     alias: [
-      { find: /^@excalidraw\/excalidraw$/, replacement: path.resolve(__dirname, "../packages/excalidraw/index.tsx") },
-      { find: /^@excalidraw\/excalidraw\/(.*?)/, replacement: path.resolve(__dirname, "../packages/excalidraw/$1") },
-      { find: /^@excalidraw\/utils$/, replacement: path.resolve(__dirname, "../packages/utils/index.ts") },
-      { find: /^@excalidraw\/utils\/(.*?)/, replacement: path.resolve(__dirname, "../packages/utils/$1") },
-      { find: /^@excalidraw\/math$/, replacement: path.resolve(__dirname, "../packages/math/index.ts") },
-      { find: /^@excalidraw\/math\/(.*?)/, replacement: path.resolve(__dirname, "../packages/math/$1") },
+      {
+        find: /^@excalidraw\/excalidraw$/,
+        replacement: path.resolve(
+          __dirname,
+          "../packages/excalidraw/index.tsx",
+        ),
+      },
+      {
+        find: /^@excalidraw\/excalidraw\/(.*?)/,
+        replacement: path.resolve(__dirname, "../packages/excalidraw/$1"),
+      },
+      {
+        find: /^@excalidraw\/utils$/,
+        replacement: path.resolve(__dirname, "../packages/utils/index.ts"),
+      },
+      {
+        find: /^@excalidraw\/utils\/(.*?)/,
+        replacement: path.resolve(__dirname, "../packages/utils/$1"),
+      },
+      {
+        find: /^@excalidraw\/math$/,
+        replacement: path.resolve(__dirname, "../packages/math/index.ts"),
+      },
+      {
+        find: /^@excalidraw\/math\/(.*?)/,
+        replacement: path.resolve(__dirname, "../packages/math/$1"),
+      },
     ],
   },
   build: {
@@ -32,7 +53,10 @@ export default defineConfig({
           return "assets/[name]-[hash][extname]";
         },
         manualChunks(id) {
-          if (id.includes("packages/excalidraw/locales") && id.match(/en.json|percentages.json/) === null) {
+          if (
+            id.includes("packages/excalidraw/locales") &&
+            id.match(/en.json|percentages.json/) === null
+          ) {
             const index = id.indexOf("locales/");
             return `locales/${id.substring(index + 8)}`;
           }
