@@ -21,9 +21,11 @@ import {
   scratchTransport,
   serializeScene,
 } from "./sync";
+import { compareScenes } from "./compare";
 import { renderPictures } from "./render";
 
 import type { LoadedScene, Transport } from "./sync";
+import type { Comparison } from "./compare";
 import type { Pictures } from "./render";
 
 type Theme = "light" | "dark";
@@ -50,6 +52,12 @@ declare global {
     };
     /** Set with `?render=1`: Jarvis's Renderer draws list pictures through it. */
     switchboardRender?: (scene: string, maxSize?: number) => Promise<Pictures>;
+    /** Set with `?render=1`: before/after comparison for the agent's checks. */
+    switchboardCompare?: (
+      before: string,
+      after: string,
+      expected?: readonly string[],
+    ) => Promise<Comparison>;
   }
 }
 
@@ -203,6 +211,7 @@ async function start() {
 
 if (params.get("render") === "1") {
   window.switchboardRender = renderPictures;
+  window.switchboardCompare = compareScenes;
 } else {
   void start();
 }
