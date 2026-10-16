@@ -311,7 +311,7 @@ declare global {
 export const nativeBridge = (): NativeBridge | undefined =>
   window.webkit?.messageHandlers?.studio;
 
-/** The Switchboard app answers each message (Switchboard Mac after 2.0.6 build 330). */
+/** The Switchboard app answers each message (Mac apps built from 2026-10-15 on). */
 export function nativeTransport(bridge: NativeBridge): Transport {
   return {
     load: async () =>
@@ -343,7 +343,7 @@ export async function nativeBridgeAnswers(
 }
 
 /**
- * Switchboard Mac 2.0.6 (330) and older: the app opens the scene with `open()` after "ready"
+ * Mac apps built before live updates (2026-10-15): the app opens the scene with `open()` after "ready"
  * and saves without a version, so the newest save wins and nothing arrives live.
  * Remove once every Mac runs a newer build.
  */

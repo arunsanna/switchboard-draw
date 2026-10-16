@@ -26,7 +26,7 @@ import type { LoadedScene, Transport } from "./sync";
 
 type Theme = "light" | "dark";
 
-/** Switchboard Mac 2.0.6 (330) and older open the scene with this call. */
+/** Mac apps built before live updates (2026-10-15) open the scene with this call. */
 type LegacyOpenRequest = {
   scene?: string | Record<string, unknown> | null;
   theme?: Theme;
