@@ -12,14 +12,20 @@ import {
 
 import * as toolQueries from "./queries/toolQueries";
 import type { ImportedDataState } from "../data/types";
-import { STORAGE_KEYS } from "../../../excalidraw-app/app_constants";
 import { getSelectedElements } from "../scene/selection";
 import type { ExcalidrawElement } from "../element/types";
 import { UI } from "./helpers/ui";
 import ansi from "ansicolor";
 import { ORIG_ID } from "../constants";
+
 import { arrayToMap } from "../utils";
 import type { AllPossibleKeys } from "../utility-types";
+
+// Local-storage keys of the excalidraw.com app, which this fork no longer ships.
+const STORAGE_KEYS = {
+  LOCAL_STORAGE_ELEMENTS: "excalidraw",
+  LOCAL_STORAGE_APP_STATE: "excalidraw-state",
+} as const;
 
 export { cleanup as unmountComponent };
 
