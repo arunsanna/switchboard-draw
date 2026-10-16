@@ -21,10 +21,12 @@ import {
   scratchTransport,
   serializeScene,
 } from "./sync";
+import { buildScene } from "./build";
 import { compareScenes } from "./compare";
 import { renderPictures } from "./render";
 
 import type { LoadedScene, Transport } from "./sync";
+import type { Built, Ops } from "./build";
 import type { Comparison } from "./compare";
 import type { Pictures } from "./render";
 
@@ -52,6 +54,8 @@ declare global {
     };
     /** Set with `?render=1`: Jarvis's Renderer draws list pictures through it. */
     switchboardRender?: (scene: string, maxSize?: number) => Promise<Pictures>;
+    /** Set with `?render=1`: the agent's changes, applied and checked against the rules. */
+    switchboardBuild?: (base: string, ops: Ops) => Promise<Built>;
     /** Set with `?render=1`: before/after comparison for the agent's checks. */
     switchboardCompare?: (
       before: string,
@@ -212,6 +216,7 @@ async function start() {
 if (params.get("render") === "1") {
   window.switchboardRender = renderPictures;
   window.switchboardCompare = compareScenes;
+  window.switchboardBuild = buildScene;
 } else {
   void start();
 }
