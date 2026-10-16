@@ -42,14 +42,14 @@ describe("the selection the agent sees", () => {
   describe("reporting", () => {
     afterEach(() => vi.useRealTimers());
 
-    it("reports the first selection, even an empty one", () => {
+    it("stays quiet when a copy opens with nothing selected", () => {
       vi.useFakeTimers();
       const report = vi.fn();
       new SelectionReporter(report, 400).update(board, {
         selectedElementIds: {},
       });
       vi.advanceTimersByTime(400);
-      expect(report).toHaveBeenCalledWith([]);
+      expect(report).not.toHaveBeenCalled();
     });
 
     it("waits for the selection to settle and reports only changes", () => {
@@ -76,12 +76,10 @@ describe("the selection the agent sees", () => {
       vi.useFakeTimers();
       const report = vi.fn();
       const reporter = new SelectionReporter(report, 400);
-      reporter.update(board, { selectedElementIds: {} });
-      vi.advanceTimersByTime(400);
       reporter.update(board, { selectedElementIds: picked("api") });
       reporter.update(board, { selectedElementIds: {} });
       vi.advanceTimersByTime(400);
-      expect(report).toHaveBeenCalledTimes(1);
+      expect(report).not.toHaveBeenCalled();
     });
   });
 

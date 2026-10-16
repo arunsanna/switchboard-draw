@@ -24,11 +24,12 @@ export function selectedShapes(
 }
 
 /**
- * Reports the selection once it settles, and only when it changed. The first one is always
- * reported, so opening a diagram replaces whatever a closed window left selected.
+ * Reports the selection once it settles, and only when it changed. A copy that opens with
+ * nothing selected says nothing, so it never clears what another open copy selected; the Mac
+ * app clears its own selection when the diagram closes.
  */
 export class SelectionReporter {
-  private reported: string | null = null;
+  private reported = "";
   private pending: string[] | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
