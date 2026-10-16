@@ -50,6 +50,8 @@ export type Transport = {
   changed(): void;
   /** Keeps or undoes an agent proposal; absent where the host cannot (older Mac apps). */
   decide?(proposal: string, action: "keep" | "undo"): Promise<Decision>;
+  /** Tells the diagram agent which shapes are selected; absent where the host cannot. */
+  select?(shapes: string[]): void;
 };
 
 type SceneAPI = Pick<
@@ -319,7 +321,7 @@ export const nativeBridge = (): NativeBridge | undefined =>
 /** The Switchboard app answers each message (Mac apps built from 2026-10-15 on). */
 export function nativeTransport(
   bridge: NativeBridge,
-  proposals = false,
+  protocol = NATIVE_PROTOCOL,
 ): Transport {
   return {
     load: async () =>
@@ -327,17 +329,22 @@ export function nativeTransport(
     save: async (scene, base) =>
       (await bridge.postMessage({ type: "save", scene, base })) as SaveResult,
     changed: () => void bridge.postMessage({ type: "changed" }),
-    decide: proposals
-      ? async (proposal, action) =>
-          ((await bridge.postMessage({
-            type: "proposal",
-            proposal,
-            action,
-          })) as Decision | undefined) ?? {
-            ok: false,
-            message: "The app did not answer",
-          }
-      : undefined,
+    decide:
+      protocol >= NATIVE_PROPOSALS_PROTOCOL
+        ? async (proposal, action) =>
+            ((await bridge.postMessage({
+              type: "proposal",
+              proposal,
+              action,
+            })) as Decision | undefined) ?? {
+              ok: false,
+              message: "The app did not answer",
+            }
+        : undefined,
+    select:
+      protocol >= NATIVE_SELECTION_PROTOCOL
+        ? (shapes) => void bridge.postMessage({ type: "selection", shapes })
+        : undefined,
   };
 }
 
@@ -345,6 +352,8 @@ export function nativeTransport(
 export const NATIVE_PROTOCOL = 2;
 /** Protocol version 3 also passes Keep and Undo on agent proposals to the gateway. */
 export const NATIVE_PROPOSALS_PROTOCOL = 3;
+/** Protocol version 4 also passes the selection on to the diagram agent. */
+export const NATIVE_SELECTION_PROTOCOL = 4;
 
 /** The protocol the app speaks, or 0 when it cannot answer at all. */
 export async function nativeBridgeProtocol(
@@ -446,6 +455,13 @@ export function gatewayTransport(diagramID: string): Transport {
         error?: string;
       };
       return { ok: false, message: body.error ?? `HTTP ${response.status}` };
+    },
+    select(shapes) {
+      void fetch(`../api/diagrams/${encodeURIComponent(diagramID)}/selection`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shapes }),
+      }).catch(() => {});
     },
   };
 }

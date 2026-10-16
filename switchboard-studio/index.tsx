@@ -15,7 +15,6 @@ import {
   gatewayTransport,
   legacyNativeTransport,
   listenToGateway,
-  NATIVE_PROPOSALS_PROTOCOL,
   NATIVE_PROTOCOL,
   nativeBridge,
   nativeBridgeProtocol,
@@ -26,6 +25,7 @@ import {
 import { buildScene } from "./build";
 import { compareScenes } from "./compare";
 import { ProposalLayer } from "./proposals";
+import { SelectionReporter } from "./selection";
 import { renderPictures } from "./render";
 
 import type { LoadedScene, Transport } from "./sync";
@@ -55,6 +55,8 @@ declare global {
       /** The gateway version the page's scene includes. */
       getVersion: () => number;
       open: (request: LegacyOpenRequest) => void;
+      /** Selects these shapes, as if Arun had clicked them. */
+      select: (ids: readonly string[]) => void;
     };
     /** Set with `?render=1`: Jarvis's Renderer draws list pictures through it. */
     switchboardRender?: (scene: string, maxSize?: number) => Promise<Pictures>;
@@ -80,7 +82,7 @@ async function makeTransport(): Promise<Transport> {
   if (bridge) {
     const protocol = await nativeBridgeProtocol(bridge);
     return protocol >= NATIVE_PROTOCOL
-      ? nativeTransport(bridge, protocol >= NATIVE_PROPOSALS_PROTOCOL)
+      ? nativeTransport(bridge, protocol)
       : legacyNativeTransport(bridge, (open) => (legacyOpen = open));
   }
   return diagramID ? gatewayTransport(diagramID) : scratchTransport;
@@ -117,10 +119,19 @@ const Studio = ({
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const proposals = useRef<ProposalLayerHandle | null>(null);
   const [initialData] = useState(() => initialDataFrom(loaded.scene));
+  const [selection] = useState(() =>
+    transport.select ? new SelectionReporter(transport.select) : null,
+  );
 
   useEffect(() => {
     window.switchboardStudio!.getScene = () =>
       api.current ? serializeScene(api.current) : null;
+    window.switchboardStudio!.select = (ids) =>
+      api.current?.updateScene({
+        appState: {
+          selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])),
+        },
+      });
   }, []);
 
   return (
@@ -140,6 +151,7 @@ const Studio = ({
         onChange={(elements, appState, files) => {
           sync.onChange(elements, appState, files);
           proposals.current?.update(elements, appState);
+          selection?.update(elements, appState);
         }}
         theme={theme}
         UIOptions={{
@@ -214,6 +226,7 @@ window.switchboardStudio = {
   },
   getScene: () => null,
   getVersion: () => opened?.sync.version ?? 0,
+  select: () => {},
   open(request) {
     theme = request.theme ?? theme;
     const scene = request.scene;

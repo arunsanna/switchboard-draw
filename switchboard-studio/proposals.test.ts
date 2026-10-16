@@ -80,7 +80,7 @@ describe("keep and undo", () => {
       },
     };
     expect(await nativeBridgeProtocol(bridge)).toBe(3);
-    expect(await nativeTransport(bridge, true).decide!("p1", "undo")).toEqual({
+    expect(await nativeTransport(bridge, 3).decide!("p1", "undo")).toEqual({
       ok: true,
     });
     expect(messages.at(-1)).toEqual({
@@ -88,7 +88,7 @@ describe("keep and undo", () => {
       proposal: "p1",
       action: "undo",
     });
-    expect(nativeTransport(bridge, false).decide).toBeUndefined();
+    expect(nativeTransport(bridge, 2).decide).toBeUndefined();
     const silent: NativeBridge = { postMessage: async () => undefined };
     expect(await nativeBridgeProtocol(silent)).toBe(0);
   });
