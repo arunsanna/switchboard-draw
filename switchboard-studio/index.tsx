@@ -1,12 +1,6 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  Excalidraw,
-  MainMenu,
-  WelcomeScreen,
-  getSceneVersion,
-  serializeAsJSON,
-} from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 
 import type {
   AppState,
@@ -16,76 +10,66 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
+import {
+  DiagramSync,
+  gatewayTransport,
+  legacyNativeTransport,
+  listenToGateway,
+  nativeBridge,
+  nativeBridgeAnswers,
+  nativeTransport,
+  scratchTransport,
+  serializeScene,
+} from "./sync";
+
+import type { LoadedScene, Transport } from "./sync";
 
 type Theme = "light" | "dark";
 
-type OpenRequest = {
-  /** A `.excalidraw` document, as text or already parsed; empty for a new diagram. */
+/** Switchboard Mac 2.0.6 (330) and older open the scene with this call. */
+type LegacyOpenRequest = {
   scene?: string | Record<string, unknown> | null;
   theme?: Theme;
 };
 
-type StudioMessage =
-  | { type: "ready" }
-  | { type: "changed" }
-  | { type: "save"; scene: string };
-
 declare global {
   interface Window {
-    webkit?: { messageHandlers?: { studio?: { postMessage: (message: StudioMessage) => void } } };
     switchboardStudio?: {
-      open: (request: OpenRequest) => void;
+      /** Another copy saved this version; pull it if it is newer. */
+      remoteChanged: (version: number) => void;
+      /** Pull the newest version, e.g. after reconnecting. */
+      refresh: () => void;
       setTheme: (theme: Theme) => void;
+      /** The scene as it would be saved, or null before it opens. */
       getScene: () => string | null;
+      /** The gateway version the page's scene includes. */
+      getVersion: () => number;
+      open: (request: LegacyOpenRequest) => void;
     };
   }
 }
 
-const SAVE_DELAY_MS = 800;
+const RETRY_DELAY_MS = 5000;
 const params = new URLSearchParams(window.location.search);
 const diagramID = params.get("diagram");
-const nativeBridge = window.webkit?.messageHandlers?.studio;
 
-/** In the Switchboard app the native side loads and saves; in a browser the gateway does. */
-const host = {
-  ready() {
-    nativeBridge?.postMessage({ type: "ready" });
-  },
-  changed() {
-    nativeBridge?.postMessage({ type: "changed" });
-  },
-  async save(scene: string) {
-    if (nativeBridge) {
-      nativeBridge.postMessage({ type: "save", scene });
-    } else if (diagramID) {
-      await fetch(`../api/diagrams/${encodeURIComponent(diagramID)}/scene`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: scene,
-      });
-    }
-  },
-  async load(): Promise<OpenRequest | null> {
-    if (nativeBridge) {
-      return null;
-    }
-    if (!diagramID) {
-      return { scene: null }; // a scratch board when opened without a diagram
-    }
-    const response = await fetch(`../api/diagrams/${encodeURIComponent(diagramID)}/scene`);
-    if (response.status === 404) {
-      return { scene: null };
-    }
-    return { scene: await response.text() };
-  },
-};
+let legacyOpen: ((scene: string | null) => void) | null = null;
 
-function initialDataFrom(request: OpenRequest): ExcalidrawInitialDataState {
-  const raw = request.scene;
-  if (!raw) {
+function makeTransport(): Transport {
+  const bridge = nativeBridge();
+  if (bridge) {
+    return nativeBridgeAnswers(bridge)
+      ? nativeTransport(bridge)
+      : legacyNativeTransport(bridge, (open) => (legacyOpen = open));
+  }
+  return diagramID ? gatewayTransport(diagramID) : scratchTransport;
+}
+
+function initialDataFrom(scene: string | null): ExcalidrawInitialDataState {
+  if (!scene) {
     return { elements: [], appState: {} };
   }
-  const parsed = (typeof raw === "string" ? JSON.parse(raw) : raw) as {
+  const parsed = JSON.parse(scene) as {
     elements?: ExcalidrawElement[];
     appState?: Partial<AppState>;
     files?: BinaryFiles;
@@ -98,44 +82,33 @@ function initialDataFrom(request: OpenRequest): ExcalidrawInitialDataState {
   };
 }
 
-const Studio = ({ request, theme }: { request: OpenRequest; theme: Theme }) => {
+const Studio = ({
+  loaded,
+  sync,
+  theme,
+}: {
+  loaded: LoadedScene;
+  sync: DiagramSync;
+  theme: Theme;
+}) => {
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
-  const lastSaved = useRef<string | null>(null);
-  const timer = useRef<number | undefined>(undefined);
-  const [initialData] = useState(() => initialDataFrom(request));
+  const [initialData] = useState(() => initialDataFrom(loaded.scene));
 
   useEffect(() => {
-    window.switchboardStudio!.getScene = () => {
-      const current = api.current;
-      if (!current) {
-        return null;
-      }
-      return serializeAsJSON(current.getSceneElementsIncludingDeleted(), current.getAppState(), current.getFiles(), "local");
-    };
+    window.switchboardStudio!.getScene = () =>
+      api.current ? serializeScene(api.current) : null;
   }, []);
-
-  const onChange = (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-    const key = `${getSceneVersion(elements)}|${appState.viewBackgroundColor}|${Object.keys(files).length}`;
-    if (lastSaved.current === null) {
-      lastSaved.current = key; // the scene as opened is already saved
-      return;
-    }
-    if (key === lastSaved.current) {
-      return;
-    }
-    lastSaved.current = key;
-    host.changed();
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      void host.save(serializeAsJSON(elements, appState, files, "local"));
-    }, SAVE_DELAY_MS);
-  };
 
   return (
     <Excalidraw
       initialData={initialData}
-      excalidrawAPI={(instance) => (api.current = instance)}
-      onChange={onChange}
+      excalidrawAPI={(instance) => {
+        api.current = instance;
+        sync.attach(instance);
+      }}
+      onChange={(elements, appState, files) =>
+        sync.onChange(elements, appState, files)
+      }
       theme={theme}
       UIOptions={{
         canvasActions: {
@@ -157,7 +130,9 @@ const Studio = ({ request, theme }: { request: OpenRequest; theme: Theme }) => {
       </MainMenu>
       <WelcomeScreen>
         <WelcomeScreen.Center>
-          <WelcomeScreen.Center.Heading>Draw anything. It saves on its own.</WelcomeScreen.Center.Heading>
+          <WelcomeScreen.Center.Heading>
+            Draw anything. It saves on its own.
+          </WelcomeScreen.Center.Heading>
         </WelcomeScreen.Center>
         <WelcomeScreen.Hints.ToolbarHint />
         <WelcomeScreen.Hints.MenuHint />
@@ -168,36 +143,58 @@ const Studio = ({ request, theme }: { request: OpenRequest; theme: Theme }) => {
 };
 
 const root = createRoot(document.getElementById("root")!);
+const transport = makeTransport();
 let theme: Theme = params.get("theme") === "dark" ? "dark" : "light";
-let current: OpenRequest | null = null;
+let opened: { loaded: LoadedScene; sync: DiagramSync } | null = null;
 
 function render() {
-  if (!current) {
+  if (!opened) {
     return;
   }
   root.render(
     <StrictMode>
-      <Studio key={String(current.scene ? "loaded" : "new")} request={current} theme={theme} />
+      <Studio loaded={opened.loaded} sync={opened.sync} theme={theme} />
     </StrictMode>,
   );
 }
 
 window.switchboardStudio = {
-  open(request) {
-    current = request;
-    theme = request.theme ?? theme;
-    render();
-  },
+  remoteChanged: (version) => opened?.sync.remoteChanged(version),
+  refresh: () => opened?.sync.refresh(),
   setTheme(next) {
     theme = next;
     render();
   },
   getScene: () => null,
+  getVersion: () => opened?.sync.version ?? 0,
+  open(request) {
+    theme = request.theme ?? theme;
+    const scene = request.scene;
+    legacyOpen?.(
+      scene
+        ? typeof scene === "string"
+          ? scene
+          : JSON.stringify(scene)
+        : null,
+    );
+  },
 };
 
-void host.load().then((request) => {
-  if (request) {
-    window.switchboardStudio!.open(request);
+async function start() {
+  let loaded: LoadedScene | null = null;
+  while (!loaded) {
+    try {
+      loaded = await transport.load();
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
   }
-  host.ready();
-});
+  const sync = new DiagramSync(transport, loaded.version);
+  opened = { loaded, sync };
+  render();
+  if (!nativeBridge() && diagramID) {
+    listenToGateway(diagramID, sync);
+  }
+}
+
+void start();
