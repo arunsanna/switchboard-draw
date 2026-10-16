@@ -102,16 +102,26 @@ export const ProposalLayer = forwardRef<
     elements: readonly ExcalidrawElement[];
     appState: AppState;
   } | null>(null);
-  const frame = useRef(0);
+  // Redraws on the next animation frame, or after a short timer when the page is hidden and
+  // WebKit sends no frames (a window behind others, a sleeping display).
+  const scheduled = useRef<{
+    frame: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
 
   useImperativeHandle(ref, () => ({
     update(elements, appState) {
       latest.current = { elements, appState };
-      if (frame.current) {
+      if (scheduled.current) {
         return;
       }
-      frame.current = requestAnimationFrame(() => {
-        frame.current = 0;
+      const redraw = () => {
+        if (!scheduled.current) {
+          return;
+        }
+        cancelAnimationFrame(scheduled.current.frame);
+        clearTimeout(scheduled.current.timer);
+        scheduled.current = null;
         const { elements: shapes, appState: state } = latest.current!;
         const proposals = pendingProposals(shapes);
         if (!proposals.length) {
@@ -142,7 +152,11 @@ export const ProposalLayer = forwardRef<
             }),
         );
         setView({ proposals, boxes });
-      });
+      };
+      scheduled.current = {
+        frame: requestAnimationFrame(redraw),
+        timer: setTimeout(redraw, 60),
+      };
     },
   }));
 
