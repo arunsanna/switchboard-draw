@@ -322,12 +322,24 @@ export function nativeTransport(bridge: NativeBridge): Transport {
   };
 }
 
-/** True when the app answers messages; older apps only listen. */
-export function nativeBridgeAnswers(bridge: NativeBridge): boolean {
-  const answer = bridge.postMessage({ type: "hello" }) as
-    | { then?: unknown }
-    | undefined;
-  return typeof answer?.then === "function";
+/** Protocol version 2 answers every message with a reply. */
+export const NATIVE_PROTOCOL = 2;
+
+/**
+ * True when the app speaks protocol 2. WebKit returns a promise from `postMessage` even when
+ * the app cannot reply (it resolves empty), so the app has to say its protocol in the answer.
+ */
+export async function nativeBridgeAnswers(
+  bridge: NativeBridge,
+): Promise<boolean> {
+  try {
+    const answer = (await bridge.postMessage({ type: "hello" })) as
+      | { protocol?: number }
+      | undefined;
+    return (answer?.protocol ?? 0) >= NATIVE_PROTOCOL;
+  } catch {
+    return false;
+  }
 }
 
 /**

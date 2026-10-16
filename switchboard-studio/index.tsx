@@ -55,10 +55,10 @@ const diagramID = params.get("diagram");
 
 let legacyOpen: ((scene: string | null) => void) | null = null;
 
-function makeTransport(): Transport {
+async function makeTransport(): Promise<Transport> {
   const bridge = nativeBridge();
   if (bridge) {
-    return nativeBridgeAnswers(bridge)
+    return (await nativeBridgeAnswers(bridge))
       ? nativeTransport(bridge)
       : legacyNativeTransport(bridge, (open) => (legacyOpen = open));
   }
@@ -143,7 +143,6 @@ const Studio = ({
 };
 
 const root = createRoot(document.getElementById("root")!);
-const transport = makeTransport();
 let theme: Theme = params.get("theme") === "dark" ? "dark" : "light";
 let opened: { loaded: LoadedScene; sync: DiagramSync } | null = null;
 
@@ -181,6 +180,7 @@ window.switchboardStudio = {
 };
 
 async function start() {
+  const transport = await makeTransport();
   let loaded: LoadedScene | null = null;
   while (!loaded) {
     try {
