@@ -825,10 +825,21 @@ export function checkRules(
     }
   }
 
+  // A box drawn around others groups them: it is much bigger, and its label stays clear.
+  const groups = (outer: Shape, inner: Shape) => {
+    const label = live.find(
+      (t) => t.type === "text" && t.containerId === outer.id,
+    );
+    return (
+      contains(outer, inner) &&
+      outer.width * outer.height >= 2.5 * inner.width * inner.height &&
+      !(label && overlaps(label, inner))
+    );
+  };
   for (let i = 0; i < solids.length; i++) {
     for (let j = i + 1; j < solids.length; j++) {
       const [a, b] = [solids[i], solids[j]];
-      if (overlaps(a, b) && !contains(a, b) && !contains(b, a)) {
+      if (overlaps(a, b) && !groups(a, b) && !groups(b, a)) {
         report(touched.has(a.id) || touched.has(b.id), {
           rule: "overlap",
           shapes: [a.id, b.id],

@@ -163,6 +163,28 @@ describe("the rules", () => {
     expect(preexisting).toBe(1);
   });
 
+  it("allow a box drawn around others, but not one dropped on another box", () => {
+    const around = [box("vpc", 0, 0, 600, 300), box("api", 40, 60)];
+    expect(checkRules(around, new Set(["api"])).issues).toEqual([]);
+    // Inside a box of about its own size: covering it, not grouping.
+    const dropped = [
+      box("login", 340, 240, 200, 95),
+      box("cache", 340, 250, 180, 80),
+    ];
+    expect(
+      checkRules(dropped, new Set(["cache"])).issues.map((i) => i.rule),
+    ).toEqual(["overlap"]);
+    // Inside a big box but over its label.
+    const covering = [
+      box("vpc", 0, 0, 600, 300),
+      label("vpc-label", "vpc", 250, 140),
+      box("api", 220, 110),
+    ];
+    expect(
+      checkRules(covering, new Set(["api"])).issues.map((i) => i.rule),
+    ).toEqual(["overlap"]);
+  });
+
   it("catch an arrow running through another box", () => {
     const shapes = [
       box("client", 0, 0),
