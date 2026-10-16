@@ -21,8 +21,10 @@ import {
   scratchTransport,
   serializeScene,
 } from "./sync";
+import { renderPictures } from "./render";
 
 import type { LoadedScene, Transport } from "./sync";
+import type { Pictures } from "./render";
 
 type Theme = "light" | "dark";
 
@@ -46,6 +48,8 @@ declare global {
       getVersion: () => number;
       open: (request: LegacyOpenRequest) => void;
     };
+    /** Set with `?render=1`: Jarvis's Renderer draws list pictures through it. */
+    switchboardRender?: (scene: string, maxSize?: number) => Promise<Pictures>;
   }
 }
 
@@ -197,4 +201,8 @@ async function start() {
   }
 }
 
-void start();
+if (params.get("render") === "1") {
+  window.switchboardRender = renderPictures;
+} else {
+  void start();
+}
